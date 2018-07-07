@@ -4,7 +4,7 @@
     <top-banner></top-banner>
     <about-mew class="homepage-about"></about-mew>
     <faqs class="homepage-faqs"></faqs>
-    <news class="homepage-news"></news>
+    <news></news>
     <social></social>
     <promo></promo>
     <vue-footer></vue-footer>
