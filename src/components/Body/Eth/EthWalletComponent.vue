@@ -39,12 +39,15 @@
                         </div>
                         <div class="col-md-7">
                             <div class="address-title">Address</div>
-                            <div class="address-section">{{eth.address}}</div>
+                            <div class="address-section">{{wallet.address}}</div>
                         </div>
                     </div>
 
 
                         <input placeholder="erc-20 Script Hash" class="form-control" v-model="scriptHash">
+                        <ul v-if="tokens.length > 0">
+                          <li v-for="token in tokens">{{token.name}} - {{token.balance}}</li>
+                        </ul>
                         <button class="btn btn-primary btn-gap btn-custom" v-on:click="addToken()">Add Token</button>
                         <button class="btn btn-primary btn-gap btn-custom" v-on:click="sendAssetPrompt">Send <i class="icon" data-icon="d"></i></button>
                         <button class="btn btn-primary btn-gap btn-custom" data-toggle="modal" data-target="#transactionModal">Get Transactions</button>
@@ -110,7 +113,11 @@
                 </div>
                 <div class="form-group">
                   <label for="neo-asset">ETH:</label>
-                  <input id="neo-asset" type="number" v-model="ethSend" class="form-control">
+                  <select class="form-control" v-model="erc20Token">
+                    <option value="eth" >ETH</option>
+                    <option v-for="token in tokens" :value="token" >{{token.name}}</option>
+                  </select>
+                  <input id="neo-asset" type="number" v-model="ethSend" class="form-control" placeholder="Amount">
                 </div>
               </div>
               <div class="modal-footer">
@@ -150,13 +157,16 @@
             privateKey:{},
             file: {},
             mainNet: 'https://infuranet.infura.io',
-            testNet: 'https://ropsten.infura.io',
-            keyStore: {}
+            testNet: 'https://homestead.infura.io',
+            keyStore: {},
+            ethers: null,
+            tokens: [],
+            erc20Token: ''
 
           }
         },
         created(){
-
+          this.ethers = require('ethers');
         },
         methods:{
           getTransactions: function(){
@@ -166,20 +176,25 @@
           },
           createNewEthWallet: function(){
             var ans = prompt('Create Password');
-            var Web3 = require("web3")
             var that = this;
             if (ans != ''){
-              this.web3 = new Web3(new Web3.providers.HttpProvider(this.mainNet));
+            /*  this.web3 = new Web3(new Web3.providers.HttpProvider(this.mainNet));
               this.eth = this.web3.eth.accounts.create();
               sessionStorage.address = this.eth.address;
               sessionStorage.privateKey = this.eth.privateKey;
               sessionStorage.password = ans;
               this.eth = this.web3.eth.accounts.encrypt(this.eth.privateKey, ans);
               sessionStorage.ethEncrypt = JSON.stringify(this.eth);
-
-              this.getBalance();
-              this.downloadKeystore();
-
+              */
+              this.wallet = this.ethers.Wallet.createRandom();
+              this.wallet.provider = new this.ethers.providers.EtherscanProvider('homestead','FEUQI8J8SPJKS3Q1I989I31DW5SFGEB6J3')
+              //encrypt Wallet
+              this.wallet.encrypt(ans).then(data => {
+                console.log(data);
+                this.eth = JSON.parse(data);
+                this.downloadKeystore();
+                this.getBalance();
+              });
             }
             else{
             alert('Must create a password!');
@@ -191,7 +206,58 @@
             FileSaver.saveAs(blob, this.eth.address+'.json')
           },
           ethSend: function(){},
-          sendAsset: function(){},
+          sendAsset: function(){
+            console.log(this.erc20Token)
+            if(this.erc20Token == 'eth'){
+
+            var transaction = {
+            nonce: 0,
+            gasLimit: 21000,
+            gasPrice: this.ethers.utils.bigNumberify("20000000000"),
+
+            to: this.sendAddr,
+
+            value: this.ethers.utils.parseEther(this.eth),
+            data: "0x",
+
+            // This ensures the transaction cannot be replayed on different networks
+            chainId: this.ethers.providers.networks.homestead.chainId
+
+        };
+
+        var signedTransaction = this.wallet.sign(transaction);
+
+        console.log(signedTransaction);
+        // "0xf86c808504a817c8008252089488a5c2d9919e46f883eb62f7b8dd9d0cc45bc2" +
+        //   "90880de0b6b3a7640000801ca0d7b10eee694f7fd9acaa0baf51e91da5c3d324" +
+        //   "f67ad827fbe4410a32967cbc32a06ffb0b4ac0855f146ff82bef010f6f2729b4" +
+        //   "24c57b3be967e2074220fca13e79"
+
+        // This can now be sent to the Ethereum network
+        var provider = this.ethers.providers.getDefaultProvider();
+        provider.sendTransaction(signedTransaction).then(function(hash) {
+            console.log('Hash: ' + hash);
+            alert(hash);
+            // Hash:
+        }).catch(err => {
+          alert(err)
+        });
+
+
+            }else{
+              var contract = new this.ethers.Contract(this.erc20Token.scriptHash, this.erc20Token.abi, this.wallet);
+
+
+
+              // Send tokens
+              contract.transfer(this.sendAddr, this.ethSend).then(function(tx) {
+                  console.log(tx);
+                  alert(tx);
+              }).catch(err => {
+                alert(err);
+              });
+            }
+          },
           loginToWallet: function(){
             var Web3 = require("web3")
             var ans = prompt('Keystore Password')
@@ -201,8 +267,9 @@
               var reader = new FileReader();
               reader.onload = (event) => {
                 that.keyStore = JSON.parse(event.target.result);
-                that.web3 = new Web3(new Web3.providers.HttpProvider(this.testNet));
-                that.eth = that.web3.eth.accounts.decrypt(that.keyStore, ans);
+                that.web3 = new Web3(new Web3.providers.HttpProvider(this.mainNet));
+                that.wallet = that.web3.eth.accounts.decrypt(that.keyStore, ans);
+
                 that.getBalance();
 
               };
@@ -218,19 +285,50 @@
             $("#assetModal").modal()
           },
           addToken: function(){
-            var contract;
-            var abi = [{"constant":true,"inputs":[],"name":"mintingFinished","outputs":[{"name":"","type":"bool"}],"payable":false,"type":"function"},{"constant":true,"inputs":[],"name":"name","outputs":[{"name":"","type":"string"}],"payable":false,"type":"function"},{"constant":false,"inputs":[{"name":"_spender","type":"address"},{"name":"_value","type":"uint256"}],"name":"approve","outputs":[],"payable":false,"type":"function"},{"constant":true,"inputs":[],"name":"totalSupply","outputs":[{"name":"","type":"uint256"}],"payable":false,"type":"function"},{"constant":false,"inputs":[{"name":"_from","type":"address"},{"name":"_to","type":"address"},{"name":"_value","type":"uint256"}],"name":"transferFrom","outputs":[],"payable":false,"type":"function"},{"constant":true,"inputs":[],"name":"decimals","outputs":[{"name":"","type":"uint256"}],"payable":false,"type":"function"},{"constant":false,"inputs":[],"name":"unpause","outputs":[{"name":"","type":"bool"}],"payable":false,"type":"function"},{"constant":false,"inputs":[{"name":"_to","type":"address"},{"name":"_amount","type":"uint256"}],"name":"mint","outputs":[{"name":"","type":"bool"}],"payable":false,"type":"function"},{"constant":true,"inputs":[],"name":"paused","outputs":[{"name":"","type":"bool"}],"payable":false,"type":"function"},{"constant":true,"inputs":[{"name":"_owner","type":"address"}],"name":"balanceOf","outputs":[{"name":"balance","type":"uint256"}],"payable":false,"type":"function"},{"constant":false,"inputs":[],"name":"finishMinting","outputs":[{"name":"","type":"bool"}],"payable":false,"type":"function"},{"constant":false,"inputs":[],"name":"pause","outputs":[{"name":"","type":"bool"}],"payable":false,"type":"function"},{"constant":true,"inputs":[],"name":"owner","outputs":[{"name":"","type":"address"}],"payable":false,"type":"function"},{"constant":true,"inputs":[],"name":"symbol","outputs":[{"name":"","type":"string"}],"payable":false,"type":"function"},{"constant":false,"inputs":[{"name":"_to","type":"address"},{"name":"_value","type":"uint256"}],"name":"transfer","outputs":[],"payable":false,"type":"function"},{"constant":false,"inputs":[{"name":"_to","type":"address"},{"name":"_amount","type":"uint256"},{"name":"_releaseTime","type":"uint256"}],"name":"mintTimelocked","outputs":[{"name":"","type":"address"}],"payable":false,"type":"function"},{"constant":true,"inputs":[{"name":"_owner","type":"address"},{"name":"_spender","type":"address"}],"name":"allowance","outputs":[{"name":"remaining","type":"uint256"}],"payable":false,"type":"function"},{"constant":false,"inputs":[{"name":"newOwner","type":"address"}],"name":"transferOwnership","outputs":[],"payable":false,"type":"function"},{"anonymous":false,"inputs":[{"indexed":true,"name":"to","type":"address"},{"indexed":false,"name":"value","type":"uint256"}],"name":"Mint","type":"event"},{"anonymous":false,"inputs":[],"name":"MintFinished","type":"event"},{"anonymous":false,"inputs":[],"name":"Pause","type":"event"},{"anonymous":false,"inputs":[],"name":"Unpause","type":"event"},{"anonymous":false,"inputs":[{"indexed":true,"name":"owner","type":"address"},{"indexed":true,"name":"spender","type":"address"},{"indexed":false,"name":"value","type":"uint256"}],"name":"Approval","type":"event"},{"anonymous":false,"inputs":[{"indexed":true,"name":"from","type":"address"},{"indexed":true,"name":"to","type":"address"},{"indexed":false,"name":"value","type":"uint256"}],"name":"Transfer","type":"event"}]
-            contract = new this.web3.eth.Contract(abi, this.scriptHash, {from: '0x'+this.eth.address})
-            console.log(contract);
-            contract.methods.balanceOf(this.eth.address).call().then(function(result){
-              console.log(result)
+
+
+            var contract,abi;
+            var token = {
+              name: '',
+              balance: 0,
+              scriptHash: '',
+              abi: null
+            }
+            var that = this;
+            var url = 'https://api.etherscan.io/api?module=contract&action=getabi&address='+this.scriptHash+'&apikey=YourApiKeyToken'
+            axios.get(url).then(data =>{
+            //////////////
+            console.log(data);
+            that.abi = JSON.parse(data.data.result);
+            token.abi = that.abi
+            console.log(that.abi);
+            var provider = this.ethers.providers.getDefaultProvider('homestead');
+
+            var contract = new this.ethers.Contract(that.scriptHash, that.abi, provider);
+            console.log(contract.functions);
+            token.scriptHash = that.scriptHash;
+            contract.balanceOf(this.wallet.address).then(data => {
+              console.log(data);
+              token.balance = that.ethers.utils.toNumber(data._bn)
+            }).catch(err => {
+              console.log(err.reason);
+              console.log(err.code);
+              console.log(err);
+            });
+
+            contract.name().then(data => {
+              console.log(data);
+              token.name = data;
+              that.tokens.push(token);
+            })
             });
           },
           getBalance: function(){
             var that = this;
-            this.web3.eth.getBalance(this.eth.address).then(data => {
+            var provider = this.ethers.providers.getDefaultProvider('homestead');
+            provider.getBalance(this.wallet.address).then(data => {
               console.log(data);
-              that.balance = data;
+              that.balance = that.ethers.utils.formatEther(data);
               that.loggedin = true;
             });
             this.getTransactions();
