@@ -346,7 +346,7 @@
 
           }
           else{
-            api.nep5.doTokenTransfer('MainNet', this.tokenSend.scriptHash, this.account.privateKey, this.sendAddr, this.tokenSend, 0, null).then(data =>{
+            api.nep5.doTransferToken('MainNet', this.tokenSend.scriptHash, this.account.privateKey, this.sendAddr, this.tokenSend, 0, null).then(data =>{
               console.log(data);
             })
           }
