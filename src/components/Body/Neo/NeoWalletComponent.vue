@@ -50,7 +50,7 @@
                         <button class="btn btn-primary btn-gap btn-custom" v-on:click="claimGas">Claim Gas</button>
                         <button class="btn btn-primary btn-gap btn-custom" v-on:click="sendAssetPrompt">Send <i class="icon" data-icon="d"></i></button>
                         <button class="btn btn-primary btn-gap btn-custom" data-toggle="modal" data-target="#transactionModal">Get Transactions</button>
-                        <div v-for="b in balance.balance">
+                        <div v-if="balance.balance != null" v-for="b in balance.balance">
                           <span  class="luv-count">{{b.amount}} - {{b.asset}}</span>
                           <br>
                         </div>
@@ -126,19 +126,13 @@
                   <label for="sendAddr">Address</label>
                   <input id="sendAddr" v-model="sendAddr" class="form-control">
                 </div>
-                <div class="form-group">
-                  <label for="neo-asset">NEO:</label>
-                  <input id="neo-asset" type="number" v-model="neoSend" class="form-control">
-                </div>
-                <div class="form-group">
-                  <label for="gas-asset">GAS:</label>
-                  <input id="gas-asset" type="number" v-model="gasSend" class="form-control">
-                </div>
-                <div class="form-group">
-                  <label for="gas-asset">Tokens:</label>
+                <div v-if="balance != null" class="form-group">
+                  <label for="gas-asset">Assets/Tokens:</label>
                   <select id="token-asset"  v-model="tokenSend" class="form-control">
-                    <option v-for="balance in balance.balance">{{balance.asset}}</option>
+                    <option v-for="balance in balance.balance" :value="balance">{{balance.asset}}</option>
                   </select>
+                  <input id="neo-asset" type="number" v-model="neoSend" class="form-control">
+
                 </div>
 
               </div>
@@ -181,13 +175,15 @@
             testnet: false,
             transactions:{},
             server: {},
-            scriptHash: ''
+            scriptHash: '',
+            tokenSend: ''
           }
         },
         created(){
           this.db = require('db.js');
 
           this.Neon = Neon.default;
+
           this.checkLogin()
           if ('serviceWorker' in navigator) {
             window.addEventListener('load', function() {
@@ -286,42 +282,28 @@
               'privateKey': this.account.privateKey,
               'publicKey': this.account.publicKey,
               'scriptHash': this.account.scriptHash,
-              'address': this.balance.address,
+              'address': this.account.address,
               'encryptedPrivateKey': this.account.encrypted
             }
             sessionStorage.encryptedPrivateKey = accountDetails.encryptedPrivateKey;
 
             var FileSaver = require('file-saver')
             var blob = new Blob([JSON.stringify(accountDetails)], {type: 'text/plain;charset=utf-8'})
-            FileSaver.saveAs(blob, this.balance.address+'.json')
+            FileSaver.saveAs(blob, this.account.address+'.json')
           },
           addTokenToDb: function(){
 
           },
           addToken:function(scriptHash){
             var that = this;
-            var getName = { scriptHash:scriptHash, operation: 'name', args: [] }
-            var getDecimals = { scriptHash:scriptHash, operation: 'decimals', args: [] }
-            var getSymbol = { scriptHash:scriptHash, operation: 'symbol', args: [] }
-            var getTotalSupply = { scriptHash:scriptHash, operation: 'totalSupply', args: [] }
-            var getBalance = {
-              scriptHash: scriptHash,
-              operation: 'balanceOf',
-              args:[that.Neon.u.reverseHex(that.Neon.u.str2hexstring(that.balance.address))]
-            };
-            var script = that.Neon.create.script([getName, getDecimals, getSymbol, getTotalSupply,getBalance]);
-            Neon.rpc.Query.invokeScript(script)
-            .execute('http://seed3.neo.org:20332')
-            .then(res => {
-              console.log(res) // You should get a result with state: "HALT, BREAK"
-              if(res.result.state != "FAULT, BREAK"){
-                var token ={name:that.Neon.u.hexstring2str(res.result.stack[0].value), decimals: res.result.stack[1].value,symbol:that.Neon.u.hexstring2str(res.result.stack[2].value),
-                totalSupply:that.Neon.u.hexstring2str(res.result.stack[3].value),balance:that.Neon.u.hexstring2str(res.result.stack[4].value)};
-                that.tokens.push(token);
-              }
-
+          api.nep5.getToken("http://seed3.cityofzion.io:8080",scriptHash,this.balance.address).then(data => {
+            console.log(data);
+            that.balance.balance.push({
+              asset : data.symbol,
+              amount: data.balance,
+              scriptHash: scriptHash
             });
-
+          });
           },
           sendAssetPrompt: function(){
             console.log('sendAsset Clicked!');
@@ -329,23 +311,25 @@
           },
           sendAsset: function(){
                     // We want to send 1 NEO and 1 GAS to ALq7AWrhAueN6mJNqk6FHJjnsEoPRytLdW
-          if(this.neoSend >0 && this.gasSend > 0){
-            var intent = api.makeIntent({NEO:this.neoSend, GAS:this.gasSend}, this.sendAddr)
+          if(this.tokenSend.asset == 'NEO'){
+            var intent = api.makeIntent({NEO:this.neoSend}, this.sendAddr)
+            const config = {
+              net: 'MainNet', // The network to perform the action, MainNet or TestNet.
+              address: this.balance.address,  // This is the address which the assets come from.
+              privateKey: this.account.privateKey,
+              intents: intent
+            }
+            var that = this;
+            this.Neon.sendAsset(config)
+            .then(config => {
+              alert("Success txid: "+config.response.txid)
+
+              that.getBalance();
+          })
 
           }
-          else if(this.neoSend >0 && this.gasSend <= 0){
-          var intent = api.makeIntent({NEO:this.neoSend}, this.sendAddr)
-
-          }
-          else if(this.neoSend <=0 && this.gasSend > 0){
-            var intent = api.makeIntent({GAS:this.gasSend}, this.sendAddr)
-
-          }
-          else{
-            alert('Must send an asset bigger than 0!')
-          }
-          console.log(intent) // This is an array of 2 Intent objects, one for each asset
-
+          else if(this.tokenSend.asset == 'GAS'){
+          var intent = api.makeIntent({GAS:this.neoSend}, this.sendAddr)
           const config = {
             net: 'MainNet', // The network to perform the action, MainNet or TestNet.
             address: this.balance.address,  // This is the address which the assets come from.
@@ -359,6 +343,16 @@
 
             that.getBalance();
         })
+
+          }
+          else{
+            api.nep5.doTokenTransfer('MainNet', this.tokenSend.scriptHash, this.account.privateKey, this.sendAddr, this.tokenSend, 0, null).then(data =>{
+              console.log(data);
+            })
+          }
+          console.log(intent) // This is an array of 2 Intent objects, one for each asset
+
+
       },
       getBalance:function(){
         var that = this;
@@ -371,6 +365,10 @@
         */
         axios.get('https://neoscan.io/api/main_net/v1/get_balance/'+this.account.address).then(obj => {
           that.balance = obj.data;
+          that.balance.balance = that.balance.balance.filter(function(i){
+
+          return i.asset == 'NEO' || i.asset == 'GAS';
+          });
 
           this.getTransactions();
           that.loggedin = true;
