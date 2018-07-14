@@ -128,7 +128,7 @@
                 </div>
                 <div v-if="balance != null" class="form-group">
                   <label for="gas-asset">Assets/Tokens:</label>
-                  <select id="token-asset"  v-model="tokenSend" class="form-control">
+                  <select placeholder="Select Asset/Token" id="token-asset"  v-model="tokenSend" class="form-control">
                     <option v-for="balance in balance.balance" :value="balance">{{balance.asset}}</option>
                   </select>
                   <input id="neo-asset" type="number" v-model="neoSend" class="form-control">
@@ -203,7 +203,6 @@
               this.account = new wallet.Account(sessionStorage.encryptedPrivateKey).decrypt(sessionStorage.phrase);
               this.getBalance();
               this.loggedin = true;
-              console.log(this.account)
               return true
             }
             else{
@@ -226,7 +225,6 @@
             var that = this;
             reader.onload = (event) => {
               var keyStore = JSON.parse(event.target.result);
-              console.log(keyStore);
               this.account = new wallet.Account(keyStore.encryptedPrivateKey).decrypt(this.phrase);
               sessionStorage.encryptedPrivateKey = keyStore.encryptedPrivateKey;
               sessionStorage.phrase = that.phrase;
@@ -255,7 +253,6 @@
             if (ans != ''){
             sessionStorage.phrase = ans;
             this.account =new wallet.Account(this.Neon.create.privateKey()).encrypt(ans);
-            console.log(this.account.encrypted)
             if(this.testnet){
               var balance = new wallet.Balance({net: 'TestNet', address: this.account.address})
 
@@ -291,19 +288,28 @@
             var blob = new Blob([JSON.stringify(accountDetails)], {type: 'text/plain;charset=utf-8'})
             FileSaver.saveAs(blob, this.account.address+'.json')
           },
-          addTokenToDb: function(){
-
+          addTokenToDb: function(token){
+            this.server.neoTokens.add(token).then(item => {
+              console.log(item);
+            });
           },
           addToken:function(scriptHash){
             var that = this;
           api.nep5.getToken("http://seed3.cityofzion.io:8080",scriptHash,this.balance.address).then(data => {
-            console.log(data);
-            that.balance.balance.push({
+            let token = {
               asset : data.symbol,
               amount: data.balance,
               scriptHash: scriptHash
-            });
+            }
+            that.balance.balance.push(token);
+            that.addTokenToDb(token);
           });
+          },
+          addTokens:function(token){
+            var that = this;
+
+            that.balance.balance.push(token);
+
           },
           sendAssetPrompt: function(){
             console.log('sendAsset Clicked!');
@@ -350,7 +356,6 @@
               console.log(data);
             })
           }
-          console.log(intent) // This is an array of 2 Intent objects, one for each asset
 
 
       },
@@ -371,12 +376,12 @@
           });
 
           this.getTransactions();
+          this.getTokens();
           that.loggedin = true;
       })
       .catch(config => {
         console.log(config)
       })
-      this.getTokens();
     },
     getTokens: function(){
 
@@ -409,7 +414,7 @@
                 // do something with the results
                 results.forEach(function(element) {
                   console.log(element);
-                  that.addToken(element.scriptHash)
+                  that.addTokens(element)
                 });
             });
       });
@@ -418,7 +423,6 @@
 
             this.Neon.claimGas({net: 'MainNet',address:this.balance.address,privateKey: this.account.privateKey})
             .then(config => {
-              console.log(config.response)
               alert('Gas CLAIMED!')
               this.getBalance();
             })

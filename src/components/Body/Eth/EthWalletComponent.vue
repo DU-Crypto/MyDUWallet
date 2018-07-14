@@ -303,10 +303,6 @@
         }).catch(err => {
           alert(err);
         })
-        // "0xf86c808504a817c8008252089488a5c2d9919e46f883eb62f7b8dd9d0cc45bc2" +
-        //   "90880de0b6b3a7640000801ca0d7b10eee694f7fd9acaa0baf51e91da5c3d324" +
-        //   "f67ad827fbe4410a32967cbc32a06ffb0b4ac0855f146ff82bef010f6f2729b4" +
-        //   "24c57b3be967e2074220fca13e79"
 
         // This can now be sent to the Ethereum network
         var provider = this.ethers.providers.getDefaultProvider();
