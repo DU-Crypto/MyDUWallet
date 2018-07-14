@@ -134,6 +134,13 @@
                   <label for="gas-asset">GAS:</label>
                   <input id="gas-asset" type="number" v-model="gasSend" class="form-control">
                 </div>
+                <div class="form-group">
+                  <label for="gas-asset">Tokens:</label>
+                  <select id="token-asset"  v-model="tokenSend" class="form-control">
+                    <option v-for="balance in balance.balance">{{balance.asset}}</option>
+                  </select>
+                </div>
+
               </div>
               <div class="modal-footer">
                 <button type="button" class="btn btn-primary"  v-on:click="sendAsset">Send <span class="glyphicon glyphicon-send"></span></button>

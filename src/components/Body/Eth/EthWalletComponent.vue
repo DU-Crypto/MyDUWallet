@@ -285,17 +285,17 @@
           ethSend: function(){},
           sendAsset: function(){
             if(this.erc20Token == 'eth'){
+            this.wallet.provider = new this.ethers.providers.EtherscanProvider('homestead','FEUQI8J8SPJKS3Q1I989I31DW5SFGEB6J3')
 
             var transaction = {
             nonce: 0,
-
+            gasLimit: this.wallet.provider.estimateGas,
             to: this.sendAddr,
 
             value: this.utils.parseEther(this.ethSend),
 
         };
 
-        this.wallet.provider = new this.ethers.providers.EtherscanProvider('homestead','FEUQI8J8SPJKS3Q1I989I31DW5SFGEB6J3')
 
         var signedTransaction = this.wallet.send(transaction.to,transaction.value);
         signedTransaction.then(transactionHash => {
