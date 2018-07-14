@@ -36,9 +36,7 @@
                         <div class="col-md-1"><span class="small-logo"><img src="static/images/logo-small.png"></span></div>
                         <div class="col-md-4 balance-section">
                         <h2>Account Balance:</h2>
-                        <span class="luv-count">{{parseInt(balance.assets.NEO.balance)}} NEO</span>
-                        <br>
-                        <span class="luv-count">{{parseFloat(balance.assets.GAS.balance)}} GAS</span>
+
                         </div>
                         <div class="col-md-7">
                             <div class="address-title">Address</div>
@@ -47,16 +45,16 @@
                     </div>
 
 
-                        Total Balance USD: ${{(gasPrice * parseFloat(balance.assets.GAS.balance) + neoPrice * parseInt(balance.assets.NEO.balance)).toFixed(2) }}
                         <input placeholder="NEP-5 Script Hash" class="form-control" v-model="scriptHash">
                         <button class="btn btn-primary btn-gap btn-custom" v-on:click="addToken(scriptHash)">Add Token</button>
                         <button class="btn btn-primary btn-gap btn-custom" v-on:click="claimGas">Claim Gas</button>
                         <button class="btn btn-primary btn-gap btn-custom" v-on:click="sendAssetPrompt">Send <i class="icon" data-icon="d"></i></button>
                         <button class="btn btn-primary btn-gap btn-custom" data-toggle="modal" data-target="#transactionModal">Get Transactions</button>
-                        <ul>
-                          <li v-for="token in tokens">{{token.symbol}}: {{token.balance}}</li>
-                        </ul>
-                    </div>
+                        <div v-for="b in balance.balance">
+                          <span  class="luv-count">{{b.amount}} - {{b.asset}}</span>
+                          <br>
+                        </div>
+                        </div>
                   </transition>
                 </div>
             </div>
@@ -175,7 +173,8 @@
             neoPrice: 0.00,
             testnet: false,
             transactions:{},
-            server: {}
+            server: {},
+            scriptHash: ''
           }
         },
         created(){
@@ -211,10 +210,6 @@
           },
           getTransactions: function(){
             var that = this;
-            var hash = this.Neon.get.scriptHashFromPublicKey(this.account.publicKey);
-            console.log(hash);
-            console.log(this.account.scriptHash);
-
             axios.get('https://neoscan.io/api/main_net/v1/get_last_transactions_by_address/'+this.account.address+'/1').then(data => {
 
               that.transactions = data.data;
@@ -234,15 +229,14 @@
               sessionStorage.phrase = that.phrase;
 
               if(this.testnet){
-                var balance = new wallet.Balance({net: 'TestNet', address: this.account.address})
+                var balance = new wallet.Balance({net: 'TestNet', address: this.balance.address})
 
               }
               else{
-                var balance = new wallet.Balance({net: 'MainNet', address: this.account.address})
+                var balance = new wallet.Balance({net: 'MainNet', address: this.balance.address})
 
               }
               that.getBalance();
-              that.getTransactions();
 
 
             };
@@ -260,18 +254,17 @@
             this.account =new wallet.Account(this.Neon.create.privateKey()).encrypt(ans);
             console.log(this.account.encrypted)
             if(this.testnet){
-              var balance = new wallet.Balance({net: 'TestNet', address: this.account.address})
+              var balance = new wallet.Balance({net: 'TestNet', address: this.balance.address})
 
             }
             else{
-              var balance = new wallet.Balance({net: 'MainNet', address: this.account.address})
+              var balance = new wallet.Balance({net: 'MainNet', address: this.balance.address})
 
             }
 
             this.downloadKeystore();
             var that = this;
             that.getBalance();
-            that.getTransactions();
 
 
           }
@@ -286,14 +279,14 @@
               'privateKey': this.account.privateKey,
               'publicKey': this.account.publicKey,
               'scriptHash': this.account.scriptHash,
-              'address': this.account.address,
+              'address': this.balance.address,
               'encryptedPrivateKey': this.account.encrypted
             }
             sessionStorage.encryptedPrivateKey = accountDetails.encryptedPrivateKey;
 
             var FileSaver = require('file-saver')
             var blob = new Blob([JSON.stringify(accountDetails)], {type: 'text/plain;charset=utf-8'})
-            FileSaver.saveAs(blob, this.account.address+'.json')
+            FileSaver.saveAs(blob, this.balance.address+'.json')
           },
           addTokenToDb: function(){
 
@@ -307,7 +300,7 @@
             var getBalance = {
               scriptHash: scriptHash,
               operation: 'balanceOf',
-              args:[that.Neon.u.reverseHex(that.Neon.u.str2hexstring(that.account.address))]
+              args:[that.Neon.u.reverseHex(that.Neon.u.str2hexstring(that.balance.address))]
             };
             var script = that.Neon.create.script([getName, getDecimals, getSymbol, getTotalSupply,getBalance]);
             Neon.rpc.Query.invokeScript(script)
@@ -348,7 +341,7 @@
 
           const config = {
             net: 'MainNet', // The network to perform the action, MainNet or TestNet.
-            address: this.account.address,  // This is the address which the assets come from.
+            address: this.balance.address,  // This is the address which the assets come from.
             privateKey: this.account.privateKey,
             intents: intent
           }
@@ -362,14 +355,17 @@
       },
       getBalance:function(){
         var that = this;
-        api.cmc.getPrice('GAS').then(res => {
+      /*  api.cmc.getPrice('GAS').then(res => {
           that.gasPrice = res;
         })
         api.cmc.getPrice('NEO').then(res => {
           that.neoPrice = res;
         })
-        api.neonDB.getBalance('MainNet',this.account.address).then(obj => {
-          that.balance = obj;
+        */
+        axios.get('https://neoscan.io/api/main_net/v1/get_balance/'+this.account.address).then(obj => {
+          that.balance = obj.data;
+
+          this.getTransactions();
           that.loggedin = true;
       })
       .catch(config => {
@@ -415,7 +411,7 @@
     },
           claimGas: function(){
 
-            this.Neon.claimGas({net: 'MainNet',address:this.account.address,privateKey: this.account.privateKey})
+            this.Neon.claimGas({net: 'MainNet',address:this.balance.address,privateKey: this.account.privateKey})
             .then(config => {
               console.log(config.response)
               alert('Gas CLAIMED!')
