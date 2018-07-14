@@ -229,11 +229,11 @@
               sessionStorage.phrase = that.phrase;
 
               if(this.testnet){
-                var balance = new wallet.Balance({net: 'TestNet', address: this.balance.address})
+                var balance = new wallet.Balance({net: 'TestNet', address: this.account.address})
 
               }
               else{
-                var balance = new wallet.Balance({net: 'MainNet', address: this.balance.address})
+                var balance = new wallet.Balance({net: 'MainNet', address: this.account.address})
 
               }
               that.getBalance();
@@ -254,11 +254,11 @@
             this.account =new wallet.Account(this.Neon.create.privateKey()).encrypt(ans);
             console.log(this.account.encrypted)
             if(this.testnet){
-              var balance = new wallet.Balance({net: 'TestNet', address: this.balance.address})
+              var balance = new wallet.Balance({net: 'TestNet', address: this.account.address})
 
             }
             else{
-              var balance = new wallet.Balance({net: 'MainNet', address: this.balance.address})
+              var balance = new wallet.Balance({net: 'MainNet', address: this.account.address})
 
             }
 
