@@ -391,7 +391,7 @@
             console.log(this.wallet.address)
             contract.balanceOf(this.wallet.address).then(data => {
               console.log(data);
-              token.balance = that.ethers.utils.toNumber(data._bn)
+              token.balance = that.ethers.toNumber(data._bn)
 
             }).catch(err => {
               console.log(err.reason);

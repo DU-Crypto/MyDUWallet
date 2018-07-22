@@ -229,14 +229,9 @@
               sessionStorage.encryptedPrivateKey = keyStore.encryptedPrivateKey;
               sessionStorage.phrase = that.phrase;
 
-              if(this.testnet){
-                var balance = new wallet.Balance({net: 'TestNet', address: this.account.address})
 
-              }
-              else{
-                var balance = new wallet.Balance({net: 'MainNet', address: this.account.address})
+              var balance = new wallet.Balance({net: 'MainNet', address: this.account.address})
 
-              }
               that.getBalance();
 
 
@@ -253,14 +248,9 @@
             if (ans != ''){
             sessionStorage.phrase = ans;
             this.account =new wallet.Account(this.Neon.create.privateKey()).encrypt(ans);
-            if(this.testnet){
-              var balance = new wallet.Balance({net: 'TestNet', address: this.account.address})
 
-            }
-            else{
               var balance = new wallet.Balance({net: 'MainNet', address: this.account.address})
 
-            }
 
             this.downloadKeystore();
             var that = this;
@@ -289,9 +279,15 @@
             FileSaver.saveAs(blob, this.account.address+'.json')
           },
           addTokenToDb: function(token){
-            this.server.neoTokens.add(token).then(item => {
+            var that = this;
+
+            this.server.neoTokens.put(token).then(item => {
               console.log(item);
+
+              that.balance.balance.push(token);
+
             });
+
           },
           addToken:function(scriptHash){
             var that = this;
@@ -301,7 +297,6 @@
               amount: data.balance,
               scriptHash: scriptHash
             }
-            that.balance.balance.push(token);
             that.addTokenToDb(token);
           });
           },
@@ -352,9 +347,19 @@
 
           }
           else{
+            /*
             api.nep5.doTransferToken('MainNet', this.tokenSend.scriptHash, this.account.privateKey, this.sendAddr, this.tokenSend, 0, null).then(data =>{
               console.log(data);
             })
+            */
+            var that = this;
+            var hash = this.tokenSend.scriptHash;
+            var sendAddr = this.Neon.get.scriptHashFromPublicKey(this.sendAddr);
+            console.log(sendAddr);
+            var toAddrScriptHash = this.Neon.u.reverseHex(sendAddr);
+            var invoke = {scriptHash:hash, operation: 'transfer', args: [this.Neon.u.reverseHex(this.account.scriptHash), toAddrScriptHash, this.Neon.u.str2hexstring(this.neoSend)] }
+            let transaction1 = this.Neon.create.script(invoke)
+            alert(transaction1)
           }
 
 
